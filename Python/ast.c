@@ -368,6 +368,11 @@ validate_expr(struct validator *state, expr_ty exp, expr_context_ty ctx)
             (!exp->v.Slice.upper || validate_expr(state, exp->v.Slice.upper, Load)) &&
             (!exp->v.Slice.step || validate_expr(state, exp->v.Slice.step, Load));
         break;
+    case Range_kind:
+        ret = (!exp->v.Slice.lower || validate_expr(state, exp->v.Slice.lower, Load)) &&
+            (!exp->v.Slice.upper || validate_expr(state, exp->v.Slice.upper, Load)) &&
+            (!exp->v.Slice.step || validate_expr(state, exp->v.Slice.step, Load));
+        break;
     case List_kind:
         ret = validate_exprs(state, exp->v.List.elts, ctx, 0);
         break;

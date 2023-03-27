@@ -141,6 +141,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->SetComp_type);
     Py_CLEAR(state->Set_type);
     Py_CLEAR(state->Slice_type);
+    Py_CLEAR(state->Range_type);
     Py_CLEAR(state->Starred_type);
     Py_CLEAR(state->Store_singleton);
     Py_CLEAR(state->Store_type);
@@ -1462,6 +1463,10 @@ init_types(struct ast_state *state)
                                   Slice_fields, 3,
         "Slice(expr? lower, expr? upper, expr? step)");
     if (!state->Slice_type) return 0;
+    state->Range_type = make_type(state, "Range", state->expr_type,
+                                  Slice_fields, 3,
+        "Range(expr? lower, expr? upper, expr? step)");
+    if (!state->Range_type) return 0;
     if (PyObject_SetAttr(state->Slice_type, state->lower, Py_None) == -1)
         return 0;
     if (PyObject_SetAttr(state->Slice_type, state->upper, Py_None) == -1)
@@ -3260,6 +3265,25 @@ _PyAST_Slice(expr_ty lower, expr_ty upper, expr_ty step, int lineno, int
     return p;
 }
 
+expr_ty
+_PyAST_Range(expr_ty lower, expr_ty upper, expr_ty step, int lineno, int
+             col_offset, int end_lineno, int end_col_offset, PyArena *arena)
+{
+    expr_ty p;
+    p = (expr_ty)_PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = Range_kind;
+    p->v.Slice.lower = lower;
+    p->v.Slice.upper = upper;
+    p->v.Slice.step = step;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    p->end_lineno = end_lineno;
+    p->end_col_offset = end_col_offset;
+    return p;
+}
+
 comprehension_ty
 _PyAST_comprehension(expr_ty target, expr_ty iter, asdl_expr_seq * ifs, int
                      is_async, PyArena *arena)
@@ -4685,6 +4709,26 @@ ast2obj_expr(struct ast_state *state, void* _o)
         break;
     case Slice_kind:
         tp = (PyTypeObject *)state->Slice_type;
+        result = PyType_GenericNew(tp, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_expr(state, o->v.Slice.lower);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->lower, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(state, o->v.Slice.upper);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->upper, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(state, o->v.Slice.step);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->step, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case Range_kind:
+        tp = (PyTypeObject *)state->Range_type;
         result = PyType_GenericNew(tp, NULL, NULL);
         if (!result) goto failed;
         value = ast2obj_expr(state, o->v.Slice.lower);
@@ -12008,6 +12052,9 @@ astmodule_exec(PyObject *m)
         return -1;
     }
     if (PyModule_AddObjectRef(m, "Slice", state->Slice_type) < 0) {
+        return -1;
+    }
+    if (PyModule_AddObjectRef(m, "Range", state->Range_type) < 0) {
         return -1;
     }
     if (PyModule_AddObjectRef(m, "expr_context", state->expr_context_type) < 0)

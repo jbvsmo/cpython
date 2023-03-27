@@ -802,6 +802,9 @@ slice[expr_ty]:
     | a=[expression] ':' b=[expression] c=[':' d=[expression] { d }] { _PyAST_Slice(a, b, c, EXTRA) }
     | a=named_expression { a }
 
+range[expr_ty]:
+    | '(' a=[expression] ':' b=[expression] c=[':' d=[expression] { d }] ')' { _PyAST_Range(a, b, c, EXTRA) }
+
 atom[expr_ty]:
     | NAME
     | 'True' { _PyAST_Constant(Py_True, NULL, EXTRA) }
@@ -809,7 +812,7 @@ atom[expr_ty]:
     | 'None' { _PyAST_Constant(Py_None, NULL, EXTRA) }
     | &STRING strings
     | NUMBER
-    | &'(' (tuple | group | genexp)
+    | &'(' (tuple | group | genexp | range)
     | &'[' (list | listcomp)
     | &'{' (dict | set | dictcomp | setcomp)
     | '...' { _PyAST_Constant(Py_Ellipsis, NULL, EXTRA) }

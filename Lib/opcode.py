@@ -220,6 +220,8 @@ def_op('KW_NAMES', 172)
 hasconst.append(172)
 def_op('CALL_INTRINSIC_1', 173)
 def_op('CALL_INTRINSIC_2', 174)
+def_op('BUILD_RANGE', 175)       # Number of items
+
 
 hasarg.extend([op for op in opmap.values() if op >= HAVE_ARGUMENT])
 

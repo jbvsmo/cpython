@@ -4127,6 +4127,26 @@
             DISPATCH();
         }
 
+        TARGET(BUILD_RANGE) {
+            PyObject *step = (oparg == 3) ? stack_pointer[-(((oparg == 3) ? 1 : 0))] : NULL;
+            PyObject *stop = stack_pointer[-(1 + ((oparg == 3) ? 1 : 0))];
+            PyObject *start = stack_pointer[-(2 + ((oparg == 3) ? 1 : 0))];
+            PyObject *range;
+            #line 2917 "Python/bytecodes.c"
+            range = PyRange_New(start, stop, step);
+            #line 4118 "Python/generated_cases.c.h"
+            Py_DECREF(start);
+            Py_DECREF(stop);
+            Py_XDECREF(step);
+            #line 2919 "Python/bytecodes.c"
+            if (range == NULL) { STACK_SHRINK(((oparg == 3) ? 1 : 0)); goto pop_2_error; }
+            #line 4124 "Python/generated_cases.c.h"
+            STACK_SHRINK(((oparg == 3) ? 1 : 0));
+            STACK_SHRINK(1);
+            stack_pointer[-1] = range;
+            DISPATCH();
+        }
+
         TARGET(FORMAT_VALUE) {
             PyObject *fmt_spec = ((oparg & FVS_MASK) == FVS_HAVE_SPEC) ? stack_pointer[-((((oparg & FVS_MASK) == FVS_HAVE_SPEC) ? 1 : 0))] : NULL;
             PyObject *value = stack_pointer[-(1 + (((oparg & FVS_MASK) == FVS_HAVE_SPEC) ? 1 : 0))];

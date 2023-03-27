@@ -763,6 +763,7 @@ static int compiler_augassign(struct compiler *, stmt_ty);
 static int compiler_annassign(struct compiler *, stmt_ty);
 static int compiler_subscript(struct compiler *, expr_ty);
 static int compiler_slice(struct compiler *, expr_ty);
+static int compiler_range(struct compiler *, expr_ty);
 
 static bool are_all_items_const(asdl_expr_seq *, Py_ssize_t, Py_ssize_t);
 
@@ -5838,6 +5839,13 @@ compiler_visit_expr1(struct compiler *c, expr_ty e)
         ADDOP_I(c, loc, BUILD_SLICE, n);
         break;
     }
+    case Range_kind:
+    {
+        int n = compiler_range(c, e);
+        RETURN_IF_ERROR(n);
+        ADDOP_I(c, loc, BUILD_RANGE, n);
+        break;
+    }
     case Name_kind:
         return compiler_nameop(c, loc, e->v.Name.id, e->v.Name.ctx);
     /* child nodes of List and Tuple will have expr_context set */
@@ -6165,6 +6173,36 @@ compiler_slice(struct compiler *c, expr_ty s)
 {
     int n = 2;
     assert(s->kind == Slice_kind);
+
+    /* only handles the cases where BUILD_SLICE is emitted */
+    if (s->v.Slice.lower) {
+        VISIT(c, expr, s->v.Slice.lower);
+    }
+    else {
+        ADDOP_LOAD_CONST(c, LOC(s), Py_None);
+    }
+
+    if (s->v.Slice.upper) {
+        VISIT(c, expr, s->v.Slice.upper);
+    }
+    else {
+        ADDOP_LOAD_CONST(c, LOC(s), Py_None);
+    }
+
+    if (s->v.Slice.step) {
+        n++;
+        VISIT(c, expr, s->v.Slice.step);
+    }
+    return n;
+}
+
+/* Returns the number of the values emitted,
+ * thus are needed to build the slice, or -1 if there is an error. */
+static int
+compiler_range(struct compiler *c, expr_ty s)
+{
+    int n = 2;
+    assert(s->kind == Range_kind);
 
     /* only handles the cases where BUILD_SLICE is emitted */
     if (s->v.Slice.lower) {

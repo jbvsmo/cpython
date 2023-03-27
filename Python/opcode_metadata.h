@@ -331,6 +331,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case BUILD_SLICE:
             return ((oparg == 3) ? 1 : 0) + 2;
+        case BUILD_RANGE:
+            return ((oparg == 3) ? 1 : 0) + 2;
         case FORMAT_VALUE:
             return (((oparg & FVS_MASK) == FVS_HAVE_SPEC) ? 1 : 0) + 1;
         case COPY:
@@ -677,6 +679,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case BUILD_SLICE:
             return 1;
+        case BUILD_RANGE:
+            return 1;
         case FORMAT_VALUE:
             return 1;
         case COPY:
@@ -866,6 +870,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [MAKE_FUNCTION] = { true, INSTR_FMT_IB },
     [RETURN_GENERATOR] = { true, INSTR_FMT_IX },
     [BUILD_SLICE] = { true, INSTR_FMT_IB },
+    [BUILD_RANGE] = { true, INSTR_FMT_IB },
     [FORMAT_VALUE] = { true, INSTR_FMT_IB },
     [COPY] = { true, INSTR_FMT_IB },
     [BINARY_OP] = { true, INSTR_FMT_IBC },

@@ -72,6 +72,7 @@
 #include "pyframe.h"
 #include "traceback.h"
 #include "sliceobject.h"
+#include "rangeobject.h"
 #include "cpython/cellobject.h"
 #include "iterobject.h"
 #include "cpython/initconfig.h"

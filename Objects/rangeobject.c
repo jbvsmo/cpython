@@ -67,6 +67,22 @@ make_range_object(PyTypeObject *type, PyObject *start,
     return obj;
 }
 
+PyObject *
+PyRange_New(PyObject *start, PyObject *stop, PyObject *step)
+{
+    if (step == NULL) {
+        step = PyLong_FromLong(1L);
+    }
+    if (start == NULL) {
+        start = PyLong_FromLong(0L);
+    }
+    if (stop == NULL) {
+        stop = PyLong_FromLong(0L);
+    }
+    return (PyObject *)make_range_object(&PyRange_Type, Py_NewRef(start),
+                                         Py_NewRef(stop), step);
+}
+
 /* XXX(nnorwitz): should we error check if the user passes any empty ranges?
    range(-10)
    range(0, -5)

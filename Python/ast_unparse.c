@@ -30,6 +30,8 @@ static int
 append_formattedvalue(_PyUnicodeWriter *writer, expr_ty e);
 static int
 append_ast_slice(_PyUnicodeWriter *writer, expr_ty e);
+static int
+append_ast_range(_PyUnicodeWriter *writer, expr_ty e);
 
 static int
 append_charp(_PyUnicodeWriter *writer, const char *charp)
@@ -788,6 +790,15 @@ append_ast_slice(_PyUnicodeWriter *writer, expr_ty e)
 }
 
 static int
+append_ast_range(_PyUnicodeWriter *writer, expr_ty e)
+{
+    APPEND_STR("(");
+    append_ast_slice(writer, e);
+    APPEND_STR_FINISH(")");
+    return 0;
+}
+
+static int
 append_ast_subscript(_PyUnicodeWriter *writer, expr_ty e)
 {
     APPEND_EXPR(e->v.Subscript.value, PR_ATOM);
@@ -903,6 +914,8 @@ append_ast_expr(_PyUnicodeWriter *writer, expr_ty e, int level)
         return append_ast_starred(writer, e);
     case Slice_kind:
         return append_ast_slice(writer, e);
+    case Range_kind:
+        return append_ast_range(writer, e);
     case Name_kind:
         return _PyUnicodeWriter_WriteStr(writer, e->v.Name.id);
     case List_kind:
