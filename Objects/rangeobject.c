@@ -70,13 +70,13 @@ make_range_object(PyTypeObject *type, PyObject *start,
 PyObject *
 PyRange_New(PyObject *start, PyObject *stop, PyObject *step)
 {
-    if (step == NULL) {
+    if (step == NULL || step == Py_None) {
         step = PyLong_FromLong(1L);
     }
-    if (start == NULL) {
+    if (start == NULL || start == Py_None) {
         start = PyLong_FromLong(0L);
     }
-    if (stop == NULL) {
+    if (stop == NULL || stop == Py_None) {
         stop = PyLong_FromLong(0L);
     }
     return (PyObject *)make_range_object(&PyRange_Type, Py_NewRef(start),
