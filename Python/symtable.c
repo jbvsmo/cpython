@@ -1704,12 +1704,12 @@ symtable_visit_expr(struct symtable *st, expr_ty e)
             VISIT(st, expr, e->v.Slice.step)
         break;
     case Range_kind:
-        if (e->v.Slice.lower)
-            VISIT(st, expr, e->v.Slice.lower)
-        if (e->v.Slice.upper)
-            VISIT(st, expr, e->v.Slice.upper)
-        if (e->v.Slice.step)
-            VISIT(st, expr, e->v.Slice.step)
+        if (e->v.Range.lower)
+            VISIT(st, expr, e->v.Range.lower)
+        if (e->v.Range.upper)
+            VISIT(st, expr, e->v.Range.upper)
+        if (e->v.Range.step)
+            VISIT(st, expr, e->v.Range.step)
         break;
     case Name_kind:
         if (!symtable_add_def(st, e->v.Name.id,

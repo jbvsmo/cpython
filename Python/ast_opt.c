@@ -805,9 +805,9 @@ astfold_expr(expr_ty node_, PyArena *ctx_, _PyASTOptimizeState *state)
         CALL_OPT(astfold_expr, expr_ty, node_->v.Slice.step);
         break;
     case Range_kind:
-        CALL_OPT(astfold_expr, expr_ty, node_->v.Slice.lower);
-        CALL_OPT(astfold_expr, expr_ty, node_->v.Slice.upper);
-        CALL_OPT(astfold_expr, expr_ty, node_->v.Slice.step);
+        CALL_OPT(astfold_expr, expr_ty, node_->v.Range.lower);
+        CALL_OPT(astfold_expr, expr_ty, node_->v.Range.upper);
+        CALL_OPT(astfold_expr, expr_ty, node_->v.Range.step);
         break;
     case List_kind:
         CALL_SEQ(astfold_expr, expr, node_->v.List.elts);

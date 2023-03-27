@@ -6206,14 +6206,14 @@ compiler_range(struct compiler *c, expr_ty s)
 
     /* only handles the cases where BUILD_SLICE is emitted */
     if (s->v.Slice.lower) {
-        VISIT(c, expr, s->v.Slice.lower);
+        VISIT(c, expr, s->v.Range.lower);
     }
     else {
         ADDOP_LOAD_CONST(c, LOC(s), Py_None);
     }
 
     if (s->v.Slice.upper) {
-        VISIT(c, expr, s->v.Slice.upper);
+        VISIT(c, expr, s->v.Range.upper);
     }
     else {
         ADDOP_LOAD_CONST(c, LOC(s), Py_None);
@@ -6221,7 +6221,7 @@ compiler_range(struct compiler *c, expr_ty s)
 
     if (s->v.Slice.step) {
         n++;
-        VISIT(c, expr, s->v.Slice.step);
+        VISIT(c, expr, s->v.Range.step);
     }
     return n;
 }

@@ -793,7 +793,20 @@ static int
 append_ast_range(_PyUnicodeWriter *writer, expr_ty e)
 {
     APPEND_STR("(");
-    append_ast_slice(writer, e);
+    if (e->v.Slice.lower) {
+        APPEND_EXPR(e->v.Range.lower, PR_TEST);
+    }
+
+    APPEND_STR(":");
+
+    if (e->v.Slice.upper) {
+        APPEND_EXPR(e->v.Range.upper, PR_TEST);
+    }
+
+    if (e->v.Slice.step) {
+        APPEND_STR(":");
+        APPEND_EXPR(e->v.Range.step, PR_TEST);
+    }
     APPEND_STR_FINISH(")");
     return 0;
 }
