@@ -2919,6 +2919,12 @@ dummy_func(
             ERROR_IF(slice == NULL, error);
         }
 
+        inst(BUILD_RANGE, (start, stop, step if (oparg == 3) -- slice)) {
+            slice = PyRange_New(start, stop, step);
+            DECREF_INPUTS();
+            ERROR_IF(slice == NULL, error);
+        }
+
         inst(FORMAT_VALUE, (value, fmt_spec if ((oparg & FVS_MASK) == FVS_HAVE_SPEC) -- result)) {
             /* Handles f-string value formatting. */
             PyObject *(*conv_fn)(PyObject *);

@@ -1703,6 +1703,14 @@ symtable_visit_expr(struct symtable *st, expr_ty e)
         if (e->v.Slice.step)
             VISIT(st, expr, e->v.Slice.step)
         break;
+    case Range_kind:
+        if (e->v.Range.lower)
+            VISIT(st, expr, e->v.Range.lower)
+        if (e->v.Range.upper)
+            VISIT(st, expr, e->v.Range.upper)
+        if (e->v.Range.step)
+            VISIT(st, expr, e->v.Range.step)
+        break;
     case Name_kind:
         if (!symtable_add_def(st, e->v.Name.id,
                               e->v.Name.ctx == Load ? USE : DEF_LOCAL, LOCATION(e)))

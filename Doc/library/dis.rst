@@ -1365,6 +1365,24 @@ iterations of the loop.
 
    See the :func:`slice` built-in function for more information.
 
+.. opcode:: BUILD_RANGE (argc)
+
+   .. index:: builtin: Range
+
+   Pushes a range object on the stack.  *argc* must be 2 or 3.  If it is 2, implements::
+
+      end = STACK.pop()
+      start = STACK.pop()
+      STACK.append(Range(start, stop))
+
+   if it is 3, implements::
+
+      step = STACK.pop()
+      end = STACK.pop()
+      start = STACK.pop()
+      STACK.append(Range(start, end, step))
+
+   See the :func:`Range` built-in function for more information.
 
 .. opcode:: EXTENDED_ARG (ext)
 

@@ -20,6 +20,7 @@ typedef struct {
     PyObject *stop;
     PyObject *step;
     PyObject *length;
+    PyObject *encoder;
 } rangeobject;
 
 /* Helper function for validating step.  Always returns a new reference or
@@ -64,7 +65,108 @@ make_range_object(PyTypeObject *type, PyObject *start,
     obj->stop = stop;
     obj->step = step;
     obj->length = length;
+    obj->encoder = NULL;
     return obj;
+}
+
+PyObject *
+encode_range_value(PyObject *encoder, PyObject *value) {
+    if (encoder == NULL) {
+        return value;
+    }
+    return PyObject_CallFunctionObjArgs(encoder, value, NULL);
+}
+
+
+PyObject *
+load_range_value(PyObject *value, long default_value, PyObject **encoder, bool match_original_encoder)
+{
+    PyObject *temp_encoder = NULL;
+    Py_ssize_t value_len = -1;
+
+    if (value == NULL || value == Py_None) {
+        value = PyLong_FromLong(default_value);
+        goto check_encoder;
+    }
+
+    value_len = PyObject_Length(value);
+    if (value_len == -1) {
+        // Threat as Long
+        PyErr_Clear();
+    } else {
+        if (!PyUnicode_Check(value)) {
+            value = PyLong_FromSsize_t(value_len);
+        } else {
+            if (value_len > 1) {
+                PyErr_SetString(PyExc_ValueError, "Strings should be one character long.");
+                return NULL;
+            }
+            Py_UCS4 ch = PyUnicode_ReadChar(value, 0);
+            value = PyLong_FromUnsignedLong(ch);
+
+            PyObject *builtins_module = PyImport_ImportModule("builtins");
+            temp_encoder = PyObject_GetAttrString(builtins_module, "chr");
+            Py_DECREF(builtins_module);
+        }
+    }
+
+    check_encoder:
+        if (temp_encoder != *encoder && match_original_encoder) {
+            Py_XDECREF(temp_encoder);
+            PyErr_SetString(PyExc_TypeError, "Cannot mix range types");
+            return NULL;
+        }
+        if (temp_encoder != NULL) {
+            if (*encoder == NULL) {
+                *encoder = temp_encoder;
+            }
+            else {
+                if (*encoder != temp_encoder) {
+                    Py_XDECREF(temp_encoder);
+                    PyErr_SetString(PyExc_TypeError, "Cannot mix range types");
+                    return NULL;
+                }
+            }
+        }
+        Py_XDECREF(temp_encoder);
+
+    return value;
+}
+
+
+PyObject *
+PyRange_New(PyObject *start, PyObject *stop, PyObject *step)
+{
+    PyObject *encoder = NULL;
+
+    step = load_range_value(step, 1L, &encoder, 1);
+    if (step == NULL) {
+        return NULL;
+    }
+    start = load_range_value(start, 0L, &encoder, 0);
+    if (start == NULL) {
+        return NULL;
+    }
+    stop = load_range_value(stop, 0L, &encoder, 1);
+    if (stop == NULL) {
+        return NULL;
+    }
+
+    rangeobject *obj = make_range_object(&PyRange_Type, Py_NewRef(start),
+                                         Py_NewRef(stop), Py_NewRef(step));
+    if (encoder) {
+        obj->encoder = encoder;
+        PyObject *gt_inc = PyObject_RichCompare(step, PyLong_FromLong(0), Py_GT);
+        PyObject *lt_inc = PyNumber_Negative(PyObject_RichCompare(step, PyLong_FromLong(0), Py_LT));
+        PyObject *inc = PyNumber_Add(gt_inc, lt_inc);
+        PyObject *incl_stop = PyNumber_Add(stop, inc);
+        obj->length = compute_range_length(start, incl_stop, step);
+        Py_DECREF(incl_stop);
+        Py_DECREF(inc);
+        Py_DECREF(lt_inc);
+        Py_DECREF(gt_inc);
+    }
+    return (PyObject *) obj;
 }
 
 /* XXX(nnorwitz): should we error check if the user passes any empty ranges?
@@ -681,11 +783,18 @@ range_repr(rangeobject *r)
         return NULL;
     }
 
+    PyObject *e_start = encode_range_value(r->encoder, r->start);
+    PyObject *e_stop = encode_range_value(r->encoder, r->stop);
+    PyObject *fmt;
+
     if (istep == 1)
-        return PyUnicode_FromFormat("range(%R, %R)", r->start, r->stop);
+        fmt = PyUnicode_FromFormat("(%R:%R)", e_start, e_stop);
     else
-        return PyUnicode_FromFormat("range(%R, %R, %R)",
-                                    r->start, r->stop, r->step);
+        fmt = PyUnicode_FromFormat("(%R:%R:%R)",
+                                    e_start, e_stop, r->step);
+    Py_DECREF(e_start);
+    Py_DECREF(e_stop);
+    return fmt;
 }
 
 /* Pickling support */
@@ -818,7 +927,7 @@ rangeiter_next(_PyRangeIterObject *r)
         long result = r->start;
         r->start = result + r->step;
         r->len--;
-        return PyLong_FromLong(result);
+        return encode_range_value(r->encoder, PyLong_FromLong(result));
     }
     return NULL;
 }
@@ -956,7 +1065,7 @@ get_len_of_range(long lo, long hi, long step)
    is not representable as a C long, OverflowError is raised. */
 
 static PyObject *
-fast_range_iter(long start, long stop, long step, long len)
+fast_range_iter(long start, long stop, long step, long len, PyObject *encoder)
 {
     _PyRangeIterObject *it = PyObject_New(_PyRangeIterObject, &PyRangeIter_Type);
     if (it == NULL)
@@ -964,6 +1073,7 @@ fast_range_iter(long start, long stop, long step, long len)
     it->start = start;
     it->step = step;
     it->len = len;
+    it->encoder = Py_XNewRef(encoder);
     return (PyObject *)it;
 }
 
@@ -972,6 +1082,7 @@ typedef struct {
     PyObject *start;
     PyObject *step;
     PyObject *len;
+    PyObject *encoder;
 } longrangeiterobject;
 
 static PyObject *
@@ -1085,6 +1196,7 @@ longrangeiter_next(longrangeiterobject *r)
     PyObject *result = r->start;
     r->start = new_start;
     Py_SETREF(r->len, new_len);
+    return encode_range_value(r->encoder, result);
     return result;
 }
 
@@ -1126,8 +1238,7 @@ range_iter(PyObject *seq)
 {
     rangeobject *r = (rangeobject *)seq;
     longrangeiterobject *it;
-    long lstart, lstop, lstep;
-    unsigned long ulen;
+    long lstart, lstop, lstep, len;
 
     assert(PyRange_Check(seq));
 
@@ -1148,12 +1259,12 @@ range_iter(PyObject *seq)
         PyErr_Clear();
         goto long_range;
     }
-    ulen = get_len_of_range(lstart, lstop, lstep);
-    if (ulen > (unsigned long)LONG_MAX) {
+    len = PyLong_AsLong(r->length);
+    if (len == -1 && PyErr_Occurred()) {
         goto long_range;
     }
-    /* check for potential overflow of lstart + ulen * lstep */
-    if (ulen) {
+    /* check for potential overflow of lstart + len * lstep */
+    if (len) {
         if (lstep > 0) {
             if (lstop > LONG_MAX - (lstep - 1))
                 goto long_range;
@@ -1163,7 +1274,7 @@ range_iter(PyObject *seq)
                 goto long_range;
         }
     }
-    return fast_range_iter(lstart, lstop, lstep, (long)ulen);
+    return fast_range_iter(lstart, lstop, lstep, len, r->encoder);
 
   long_range:
     it = PyObject_New(longrangeiterobject, &PyLongRangeIter_Type);
@@ -1173,6 +1284,7 @@ range_iter(PyObject *seq)
     it->start = Py_NewRef(r->start);
     it->step = Py_NewRef(r->step);
     it->len = Py_NewRef(r->length);
+    it->encoder = Py_XNewRef(r->encoder);
     return (PyObject *)it;
 }
 
@@ -1182,8 +1294,7 @@ range_reverse(PyObject *seq, PyObject *Py_UNUSED(ignored))
     rangeobject *range = (rangeobject*) seq;
     longrangeiterobject *it;
     PyObject *sum, *diff, *product;
-    long lstart, lstop, lstep, new_start, new_stop;
-    unsigned long ulen;
+    long lstart, lstop, lstep, new_start, new_stop, len;
 
     assert(PyRange_Check(seq));
 
@@ -1238,13 +1349,14 @@ range_reverse(PyObject *seq, PyObject *Py_UNUSED(ignored))
             goto long_range;
     }
 
-    ulen = get_len_of_range(lstart, lstop, lstep);
-    if (ulen > (unsigned long)LONG_MAX)
+    len = PyLong_AsLong(range->length);
+    if (len == -1 && PyErr_Occurred()) {
         goto long_range;
+    }
 
     new_stop = lstart - lstep;
-    new_start = (long)(new_stop + ulen * lstep);
-    return fast_range_iter(new_start, new_stop, -lstep, (long)ulen);
+    new_start = new_stop + len * lstep;
+    return fast_range_iter(new_start, new_stop, -lstep, len, range->encoder);
 
 long_range:
     it = PyObject_New(longrangeiterobject, &PyLongRangeIter_Type);

@@ -19,6 +19,9 @@ PyAPI_DATA(PyTypeObject) PyRange_Type;
 PyAPI_DATA(PyTypeObject) PyRangeIter_Type;
 PyAPI_DATA(PyTypeObject) PyLongRangeIter_Type;
 
+PyAPI_FUNC(PyObject *) PyRange_New(PyObject* start, PyObject* stop,
+                                  PyObject* step);
+
 #define PyRange_Check(op) Py_IS_TYPE((op), &PyRange_Type)
 
 #ifdef __cplusplus

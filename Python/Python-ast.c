@@ -137,6 +137,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->RShift_singleton);
     Py_CLEAR(state->RShift_type);
     Py_CLEAR(state->Raise_type);
+    Py_CLEAR(state->Range_type);
     Py_CLEAR(state->Return_type);
     Py_CLEAR(state->SetComp_type);
     Py_CLEAR(state->Set_type);
@@ -556,6 +557,11 @@ static const char * const Dict_fields[]={
 };
 static const char * const Set_fields[]={
     "elts",
+};
+static const char * const Range_fields[]={
+    "lower",
+    "upper",
+    "step",
 };
 static const char * const ListComp_fields[]={
     "elt",
@@ -1320,6 +1326,7 @@ init_types(struct ast_state *state)
         "     | IfExp(expr test, expr body, expr orelse)\n"
         "     | Dict(expr* keys, expr* values)\n"
         "     | Set(expr* elts)\n"
+        "     | Range(expr? lower, expr? upper, expr? step)\n"
         "     | ListComp(expr elt, comprehension* generators)\n"
         "     | SetComp(expr elt, comprehension* generators)\n"
         "     | DictComp(expr key, expr value, comprehension* generators)\n"
@@ -1377,6 +1384,16 @@ init_types(struct ast_state *state)
     state->Set_type = make_type(state, "Set", state->expr_type, Set_fields, 1,
         "Set(expr* elts)");
     if (!state->Set_type) return 0;
+    state->Range_type = make_type(state, "Range", state->expr_type,
+                                  Range_fields, 3,
+        "Range(expr? lower, expr? upper, expr? step)");
+    if (!state->Range_type) return 0;
+    if (PyObject_SetAttr(state->Range_type, state->lower, Py_None) == -1)
+        return 0;
+    if (PyObject_SetAttr(state->Range_type, state->upper, Py_None) == -1)
+        return 0;
+    if (PyObject_SetAttr(state->Range_type, state->step, Py_None) == -1)
+        return 0;
     state->ListComp_type = make_type(state, "ListComp", state->expr_type,
                                      ListComp_fields, 2,
         "ListComp(expr elt, comprehension* generators)");
@@ -2784,6 +2801,25 @@ _PyAST_Set(asdl_expr_seq * elts, int lineno, int col_offset, int end_lineno,
         return NULL;
     p->kind = Set_kind;
     p->v.Set.elts = elts;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    p->end_lineno = end_lineno;
+    p->end_col_offset = end_col_offset;
+    return p;
+}
+
+expr_ty
+_PyAST_Range(expr_ty lower, expr_ty upper, expr_ty step, int lineno, int
+             col_offset, int end_lineno, int end_col_offset, PyArena *arena)
+{
+    expr_ty p;
+    p = (expr_ty)_PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = Range_kind;
+    p->v.Range.lower = lower;
+    p->v.Range.upper = upper;
+    p->v.Range.step = step;
     p->lineno = lineno;
     p->col_offset = col_offset;
     p->end_lineno = end_lineno;
@@ -4387,6 +4423,26 @@ ast2obj_expr(struct ast_state *state, void* _o)
         value = ast2obj_list(state, (asdl_seq*)o->v.Set.elts, ast2obj_expr);
         if (!value) goto failed;
         if (PyObject_SetAttr(result, state->elts, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case Range_kind:
+        tp = (PyTypeObject *)state->Range_type;
+        result = PyType_GenericNew(tp, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_expr(state, o->v.Range.lower);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->lower, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(state, o->v.Range.upper);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->upper, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(state, o->v.Range.step);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->step, value) == -1)
             goto failed;
         Py_DECREF(value);
         break;
@@ -8634,6 +8690,72 @@ obj2ast_expr(struct ast_state *state, PyObject* obj, expr_ty* out, PyArena*
         if (*out == NULL) goto failed;
         return 0;
     }
+    tp = state->Range_type;
+    isinstance = PyObject_IsInstance(obj, tp);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        expr_ty lower;
+        expr_ty upper;
+        expr_ty step;
+
+        if (_PyObject_LookupAttr(obj, state->lower, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL || tmp == Py_None) {
+            Py_CLEAR(tmp);
+            lower = NULL;
+        }
+        else {
+            int res;
+            if (_Py_EnterRecursiveCall(" while traversing 'Range' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &lower, arena);
+            _Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->upper, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL || tmp == Py_None) {
+            Py_CLEAR(tmp);
+            upper = NULL;
+        }
+        else {
+            int res;
+            if (_Py_EnterRecursiveCall(" while traversing 'Range' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &upper, arena);
+            _Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttr(obj, state->step, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL || tmp == Py_None) {
+            Py_CLEAR(tmp);
+            step = NULL;
+        }
+        else {
+            int res;
+            if (_Py_EnterRecursiveCall(" while traversing 'Range' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &step, arena);
+            _Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        *out = _PyAST_Range(lower, upper, step, lineno, col_offset, end_lineno,
+                            end_col_offset, arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
     tp = state->ListComp_type;
     isinstance = PyObject_IsInstance(obj, tp);
     if (isinstance == -1) {
@@ -11949,6 +12071,9 @@ astmodule_exec(PyObject *m)
         return -1;
     }
     if (PyModule_AddObjectRef(m, "Set", state->Set_type) < 0) {
+        return -1;
+    }
+    if (PyModule_AddObjectRef(m, "Range", state->Range_type) < 0) {
         return -1;
     }
     if (PyModule_AddObjectRef(m, "ListComp", state->ListComp_type) < 0) {
